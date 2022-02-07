@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+pragma solidity ^0.8.3;
+
+contract Ballot {
+
+    struct Voter {
+        uint weight;
+        bool voted ;
+        address delegate;
+        uint vote;
+    }
+
+    struct Proposal {
+        bytes32 name;
+        uint voteCount;
+
+    }
+
+    mapping(address => Voter) public voters;
+    Proposal[] public proposals;
+    address chairperson;
+
+    constructor(bytes32[] memory proposalNames){
+        chairperson = msg.sender;
+        voters[chairperson].weight = 1;
+
+        for(uint i = 0 ; i < proposalNames.length ; i++){
+            proposals.push(Proposal({
+                name : proposalNames[i],
+                voteCount : 0
+            }));
+        }
+    }   
+
+    function giveRightToVote(address voter) public  {
+        require( msg.sender == chairperson , 
+        "Only chairperson have right to vote ");
+
+        require(!voters[voter].voted , "Already Voted");
+        require(voters[voter].weight == 0);
+        voters[voter].weight = 1;
+    }
+
+    function delegate(address to) public {
+        Voter storage sender  = voters[msg.sender];
+        require(to != msg.sender , "Cannot self-delegate");
+        require(!sender.voted , "Already Voted");
+
+        while(voters[to].delegate == address(0)){
+            to = voters[to].delegate;
+            require(to != msg.sender , "Found loop in delegation");
+        }
+
+        sender.voted = true;
+        sender.delegate = to;
+
+        Voter storage delegate_ = voters[to];
+        if(delegate_.voted){
+            proposals[delegate_.vote].voteCount += sender.weight;
+        }
+        else {
+            delegate_.weight += sender.weight;
+        }
+    }
+
+    function vote(uint proposal) public {
+        Voter storage sender = voters[msg.sender];
+        require(!sender.voted , "Already voted");
+        require(sender.weight != 0 , "Has no right to vote");
+
+        sender.voted = true;
+        sender.vote = proposal;
+
+        proposals[proposal].voteCount += sender.weight;
+    }
+
+    function winningProposal() public view returns(uint winningProposal_){
+        uint winningVoteCount;
+        for(uint p = 0 ; p < proposals.length ; p++){
+            if(proposals[p].voteCount > winningVoteCount){
+                winningVoteCount = proposals[p].voteCount;
+                winningProposal_ = p ;
+            }
+        }
+    }
+
+
+    function winnername() public view returns (bytes32 winnerName_){
+        winnerName_ = proposals[winningProposal()].name;
+    }
+
+
+}
